@@ -1,0 +1,167 @@
+@font-face{
+	font-family:'abel';
+	src: url("../media/abel-regular-webfont.woff") format("woff");
+}
+
+html{
+	height:100%;
+}
+
+body{
+	height:97%;
+	background-image:url("../media/space.jpg");
+	background-color:black;
+	font-family: abel;
+}
+
+a:link, a:visited{
+	color:#000066;
+	text-decoration:none;
+}
+
+a:active{
+	text-decoration:none;
+}
+
+a:hover{
+	color:#cccccc;
+}
+
+h1{
+	font-size: 250%;
+	width:100%;
+	height:35px;
+	margin:0;
+	padding:5px;
+	padding-left:35px;
+	padding-bottom:5px;
+}
+
+h2{
+	font-size:28px;
+}
+
+h3{
+	font-size:22px;
+}
+
+h4{
+	font-size:36px;
+	text-decoration:underline;
+}
+
+p{
+	font-size:18px;
+}
+
+article{
+	padding-left:25px;
+	padding-right: 25px;
+	padding-bottom:20px;
+}
+
+.wrapper{
+	max-width:920px;
+	min-height:100%;
+	margin:auto;
+	background-color:#f2f2f2;
+}
+
+nav ul{
+	padding-top:0;
+	padding-left: 0;
+	margin-left: 0;
+	background-color:#000066;
+	color: White;
+	float: left;
+	width: 100%;
+	font-size:18px;
+}
+
+nav ul li{
+	display:inline;
+}
+
+nav ul li a, nav ul li a:link, nav ul li a:visited{
+	padding: 0.2em .65em;
+	background-color: #000066;
+	color: White;
+	text-decoration: none;
+	float: left;
+	border-right: 1px solid #fff;
+}
+
+nav ul li a:hover{
+	background-color: #000099;
+	color: #fff;
+}
+
+#sidebar{
+	text-decoration:underline;
+	font-size:22px;
+	border-right:1px solid gray;
+	float:left;
+	width:120px;
+	height: 225px;
+	padding:15px;
+	padding-right: 10px;
+	padding-top: 0px;
+}
+
+#sidebar ul{
+	font-size:16px;
+	text-decoration:none;
+	list-style-type:circle;
+	padding-left:20px;
+}
+
+#space{
+	float:left;
+	width:15px;
+	height:240px;
+}
+
+#proposal{
+	padding-left:30px;
+	max-width: 850px;
+	padding-bottom:30px;
+	padding-right:30px;
+}
+
+footer{
+	width:500;
+	padding: 15px;
+	padding-bottom:15px;
+	bottom:0;
+	left:0;
+	right:0;
+	text-align: center;
+	float:bottom;
+}
+
+#footer{
+	text-align:center;
+}
+
+#image{
+	text-align:center;
+	padding-top:30px;
+	padding-bottom:30px;
+}
+
+#image img{
+	width:85%;
+}
+
+#screenshots{
+	text-align:center;
+	width:100%;
+}
+
+#screenshots img{
+	width:49%;
+}
+
+@media screen and (max-width: 480px) {
+	
+}
