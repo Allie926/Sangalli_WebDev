@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<title>Adventure Game</title>
+	<link href="https://fonts.googleapis.com/css?family=Press+Start+2P" rel="stylesheet">
+	<link href="styles/main.css" rel="stylesheet">
+	<script src="scripts/gamedata.js"></script>
+	<style>
+		audio{display:none;}
+	</style>
+</head>
+<body>
+<div id="gridContainer"></div>
+<h1>Crystal Quest</h1>
+<!-- https://freesound.org/people/Dirtjm/sounds/262279/ -->
+<audio id="effectAudio" src="sounds/grunt.wav" controls></audio>
+<div id="healthBox">
+<h2>Health:<span>99</span></h2>
+</div>
+<div id="inventory">
+<h2>Inventory</h2>
+<table></table>
+</div>
+<p><a href="documentation.html">Documentation</a></p>
+<script>
+"use strict";
+
+// This is a comment
+
+// I. VARIABLES
+const cellWidth = 32; 
+const cellSpacing = 0;
+const container = document.querySelector("#gridContainer");
+const inventory = document.querySelector("table");
+
+const cells = []; // the HTML elements - our "view"
+
+
+// faking an enumeration here
+const keyboard = Object.freeze({
+	SHIFT: 		16,
+	SPACE: 		32,
+	LEFT: 		37, 
+	UP: 		38, 
+	RIGHT: 		39, 
+	DOWN: 		40
+});
+
+// this is an enumeration for gameworld levels
+const worldTile = Object.freeze({
+	FLOOR: 		0,
+	WALL: 		1,
+	GRASS: 		2,
+	WATER: 		3,
+	GROUND: 	4
+});
+
+// the "grunt" sound that plays when the player attempts to move into a wall or water square
+let effectAudio = undefined;
+
+// level data is over in gamedata.js
+let currentLevelNumber = 1;
+let currentGameWorld = undefined;   // a 2D array - the grid:  walls, floors, water, etc...
+let currentGameObjects = undefined; // a 1D array - stuff that's on top of the grid and can move: monsters, treasure, keys, etc...
+
+// the player - uses ES6 object literal syntax
+const player = Object.seal({
+	x:-1,
+	y:-1,
+    health:30,
+    weapon:undefined,
+	element: undefined,
+	moveRight(){this.x++;},
+	moveDown(){this.y++;},
+	moveLeft(){this.x--;},
+	moveUp(){this.y--;},
+    setWeapon(weapon){this.weapon = weapon;},
+    modifyHealth(health){this.health += health;},
+});
+
+// II. INIT code
+window.onload = ()=>{
+	currentGameWorld = gameworld["world" + currentLevelNumber];
+	let numCols = currentGameWorld[0].length;
+	let numRows = currentGameWorld.length;
+	createGridElements(numRows,numCols);
+	drawGrid(currentGameWorld);
+	loadLevel(currentLevelNumber);
+	drawGameObjects(currentGameObjects);
+	effectAudio = document.querySelector("#effectAudio");
+	effectAudio.volume = 0.2;
+	setupEvents();
+	initializeInventory();
+    setHealth();
+}
+
+
+// III. FUNCTIONS
+// the elements on the screen that won't change - our "view"
+function initializeInventory()
+{
+	// create a new row
+	const newRow = document.createElement("TR");
+	
+	// create a column for the name and quantity
+	const newHead1 = document.createElement("TH");
+	const newHead2 = document.createElement("TH");
+	newHead1.innerHTML = "Name";
+	newHead2.innerHTML = "Qty.";
+	newHead1.className += "name";
+
+	// add the columns to the row
+	newRow.appendChild(newHead1);
+	newRow.appendChild(newHead2);
+
+	// add the row to the table
+	inventory.appendChild(newRow);
+}
+
+// sets the health of the player and changes color value of health text
+function setHealth()
+{
+    let health = document.querySelector("div#healthBox span");
+    
+    health.innerHTML = player.health;
+    
+    if(player.health <= 12)
+        health.style.color = "red";
+    else if(player.health > 12)
+        health.style.color = "green";
+}    
+
+// adds the weapon to the first slot of the inventory
+// if the player is holding a weapon they are asked to switch
+// returns true if the item is equipped, false if it is not.
+function equipWeapon(weapon)
+{
+    if(player.weapon != undefined)
+    {
+        if(confirm("Would you like to drop your " + player.weapon.name + " for a " + weapon.name + "?"))
+        {
+            inventory.rows[1].cells[0].innerHTML = weapon.name;
+            addObjectToLevel(player.weapon);
+        }
+        else
+            return false;
+    }
+    else
+    {
+        modifyInventory(weapon.name, true);
+    }
+    
+    player.setWeapon(weapon);
+    return true;
+}    
+    
+// adds an item to the inventory
+// will increase quantity of item if instance already exists
+function modifyInventory(item, isWeapon = false)
+{
+    // default is append at the end
+	let rowToChange = -1;
+	
+    // check if one instance of the item already exists
+	for(let row = 0; row < inventory.rows.length; row++)
+	{
+		if(inventory.rows[row].cells[0].innerHTML == item)
+		{
+			rowToChange = row;           // change it so now it just increases the quantity
+		}
+	}
+	
+    // if the item exists in the ionventory
+	if(rowToChange > -1)
+	{
+		let quantity = inventory.rows[rowToChange].cells[1].innerHTML;
+		quantity++;
+		inventory.rows[rowToChange].cells[1].innerHTML = quantity;
+	}
+	else           // if the item doesn't exist
+	{
+        if(isWeapon)
+        {
+            inventory.insertRow(1);
+            
+            // create new cells for name and quantity
+            inventory.rows[1].insertCell(0);
+            inventory.rows[1].insertCell(1);
+        
+            // add the name and quantity to these cells
+            inventory.rows[1].cells[0].innerHTML = item;
+		    inventory.rows[1].cells[1].innerHTML = 1;
+        }
+        else
+        {
+            inventory.insertRow(-1);
+        
+            // create new cells for name and quantity
+            inventory.rows[inventory.rows.length - 1].insertCell(0);
+            inventory.rows[inventory.rows.length - 1].insertCell(1);
+        
+            // add the name and quantity to these cells
+            inventory.rows[inventory.rows.length - 1].cells[0].innerHTML = item;
+		    inventory.rows[inventory.rows.length - 1].cells[1].innerHTML = 1;
+        }
+	}
+}
+
+// removes an item from the inventory
+// assumes there is an item to remove and is removing a legal amount of items
+function removeItemFromInventory(item, amount)
+{
+	for(let row = 0; row < inventory.rows.length; row++)
+	{
+		if(inventory.rows[row].cells[0].innerHTML == item)
+		{
+			let quantity = inventory.rows[row].cells[1].innerHTML;
+		    quantity -= amount;
+		    inventory.rows[row].cells[1].innerHTML = quantity;
+            
+            if(quantity == 0)
+                inventory.deleteRow(row);
+		}
+	}
+} 
+
+// handles the enemy interaction
+// returns true if hte enemy is defeated
+// returns false by default
+function enemyHandling(enemy)
+{
+    // ask the player if they want to engage the enemy
+    if(confirm("Enemy Health is " + enemy.health + ". Would you like to engage?"))
+    {
+        // check if they have a weapon
+        if(checkWeapon())
+        {
+            // first generate a hit percent chance
+            let playerHit = Math.random() * 100;
+            
+            // if you didn't miss, generate a damage count 
+            if(playerHit < player.weapon.hit)
+            {
+                enemy.health -= player.weapon.power;
+                
+                // so the health is never negative
+                if(enemy.health < 0)
+                    enemy.health = 0;
+                alert("You did " + player.weapon.power + " damage to the enemy\nEnemy Health: " + enemy.health);
+            }
+            else
+            {
+                alert("You missed the enemy!");
+            }
+            
+            // so the enemy doesn't attack the player if they are dead
+            if(enemy.health > 0)
+            {
+                // genereate a hit chance for the enemy
+                let enemyHit = Math.random() * 100;
+
+                // generate a damage amount for the enemy
+                if(enemyHit < enemy.hit)
+                {
+                    player.modifyHealth(-enemy.power);
+                    alert("Enemy did " + enemy.power + " damage to the player");
+                }
+                else
+                {
+                    alert("The enemy missed you!");
+                }
+            }
+            
+            // check if the player is dead
+            if(player.health <= 0)
+            {
+				alert("You have been slain.");
+                player.health = 0;
+                resetLevel(8);
+                player.x = 14;
+                player.y = 10;
+                currentGameWorld = gameworld["world" + currentLevelNumber];
+	            let numCols = currentGameWorld[0].length;
+	            let numRows = currentGameWorld.length;
+	            createGridElements(numRows,numCols);
+            }
+            
+            // check if the enemy is dead
+            // if the enemy is dead, remove from the level, and return true
+            if(enemy.health <= 0)
+            {
+                alert("The monster was slain");
+                removeObjectFromLevel(enemy.x, enemy.y, enemy.className);
+                
+                let randomTreasureIndex = Math.floor(Math.random() * (2 * (enemyLoot.treasureList.length + 1)));
+                
+                // loot
+                if(randomTreasureIndex < enemyLoot.treasureList.length)
+                {
+                    alert("Enemy dropped " + enemyLoot.treasureList[randomTreasureIndex].name + "!")
+                    
+                    // if enemy drops weapon, try and equip
+                    if(enemyLoot.treasureList[randomTreasureIndex].type == "weapon")
+                    {
+                        if(!equipWeapon(enemyLoot.treasureList[randomTreasureIndex]))
+                        {
+                            addObjectToLevel(enemyLoot.treasureList[randomTreasureIndex]);
+                        }
+                    }
+                    else
+                    {
+                        modifyInventory(enemyLoot.treasureList[randomTreasureIndex].name);
+                    }
+                }
+                return true;
+            }
+            else
+                return false;
+        }
+        else
+        {
+            alert("You do not have an item to attack with!");
+            return false;
+        }
+    }
+    else
+    {
+        return false;
+    }
+    
+}
+
+// checks if the player has a key and opens a chest
+// changes closed chest sprite to open chest sprite
+// generates random treasure to give to player
+function openChest(chest)
+{
+    // the player does not have the key by default
+    let hasKey = -1;
+    
+    // check if A key exists in the inventory
+	for(let row = 0; row < inventory.rows.length; row++)
+	{
+		if(inventory.rows[row].cells[0].innerHTML == "Key")
+		{
+			hasKey = 1;           // The player has a key
+            let keyQuant = inventory.rows[row].cells[1].innerHTML;
+            keyQuant--;
+            
+            // check if it's their last key; delete the row or subtract quantity
+            if(keyQuant == 0)
+                inventory.deleteRow(row);
+            else
+                inventory.rows[row].cells[1].innerHTML = keyQuant;
+		  
+            // exit the loop
+            break;
+        }
+	}
+    
+    // the player used a key
+    if(hasKey == 1)
+    {
+        let randomTreasureIndex = Math.floor(Math.random() * chestItems.treasureList.length);
+        modifyInventory(chestItems.treasureList[randomTreasureIndex].name);
+		
+		// removes the current closed chest from the world
+		removeObjectFromLevel(chest.x, chest.y, chest.className);
+		let container = document.querySelector("#gridContainer");
+		for(let i = container.children.length - 1; i >= 0; i--)
+		{
+			if(container.children[i].className == "gameObject chest")
+			container.removeChild(container.children[i]);
+		}
+		
+		// adds a new open chest to the world
+		const node =  document.createElement("span");
+		node.className = "gameObject";
+		let openChest = {x:player.x, y:player.y, type:"openChest", className: cssClass.CHEST2, name:"OpenChest"};
+		allGameObjects["level" + currentLevelNumber].push(openChest);
+		
+		let obj = allGameObjects["level" + currentLevelNumber][allGameObjects["level" + currentLevelNumber].length - 1];
+		const clone = Object.assign({}, obj); 		// clone the object
+		clone.element = node.cloneNode(true); 		// clone the element
+		clone.element.classList.add(obj.className); // add the className so we see the right image
+		currentGameObjects.push(clone);				// add to currentGameObjects array  (so it gets moved onto the map)
+		container.appendChild(clone.element);		// add to DOM tree (so we can see it!)
+    }
+    
+}
+
+// checks if player currently has an instance of an item
+// returns true if yes, false if no
+function checkItem(item)
+{
+    for(let row = 0; row < inventory.rows.length; row++)
+	{
+		if(inventory.rows[row].cells[0].innerHTML == item)
+            return true;
+    }
+    
+    return false;
+}
+
+// checks if the player currently has a weapon
+// returns true if yes, false if no
+function checkWeapon()
+{
+    if(player.weapon != undefined)
+        return true;
+    
+    return false;
+}
+
+// checks the quantity of a certain item
+// assumes the player has an item to check the amount of
+// returns the quantity
+function checkAmountOfItem(item)
+{
+    for(let row = 0; row < inventory.rows.length; row++)
+	{
+		if(inventory.rows[row].cells[0].innerHTML == item)
+        {
+            return inventory.rows[row].cells[1].innerHTML;
+        }
+    }
+}
+
+// removes an object form current game objects, allg game objects, and the DOM
+function removeObjectFromLevel(objectX, objectY, objectClass)
+{
+    // remove from current game objects
+    for(let i = 0; i < currentGameObjects.length ; i++)
+    {
+        if(currentGameObjects[i].x == objectX && currentGameObjects[i].y == objectY)
+        {
+            currentGameObjects.splice(i, 1);
+            break;
+        }
+    }
+	
+	// remove from all objects so that picked up objects stay gone
+	let currentLevel = "level" + currentLevelNumber;
+	for(let i = 0; i < allGameObjects[currentLevel].length; i++)
+	{
+		if(allGameObjects[currentLevel][i].x == objectX && allGameObjects[currentLevel][i].y == objectY)
+        {
+            allGameObjects[currentLevel].splice(i, 1);
+            break;
+        }
+	}
+    
+    // remove from the DOM
+    let container = document.querySelector("#gridContainer");
+    for(let i = 0; i < container.children.length; i++)
+    {
+        if(container.children[i].className == "gameObject " + objectClass && container.children[i].style.left == objectX*32 + 'px' && container.children[i].style.top == objectY*32 + 'px')
+            container.removeChild(container.children[i]);
+    }
+}
+
+// adds a gameobject from the player's inventory or item drop to the DOM and current GO
+function addObjectToLevel(object)
+{   
+    // add the object to all game objects
+    allGameObjects["level" + currentLevelNumber].push({x:player.x,  y:player.y,  type:object.type,     className: object.className, name:object.name, power:object.power, hit:object.hit});
+    
+    // add the object to the DOM
+    let container = document.querySelector("#gridContainer");
+    
+    let newSpan = document.createElement("span");
+    newSpan.className = "gameObject " + object.className;
+    newSpan.style.left = player.x * 32 + 'px';
+    newSpan.style.top = player.y * 32 + 'px';
+    container.appendChild(newSpan);
+    
+    // add the object to current game objects
+    currentGameObjects.push({x:player.x,  y:player.y,  type:object.type, className: object.className, name:object.name, power:object.power, hit:object.hit, element: newSpan});
+    
+    
+}
+
+// creates the grid
+function createGridElements(numRows,numCols){
+	const span = document.createElement('span');
+	span.className = 'cell';
+	for (let row=0;row<numRows;row++){
+	cells.push([]);
+		for (let col=0;col<numCols;col++){
+			let cell = span.cloneNode();
+			cell.style.left = `${col * (cellWidth+cellSpacing)}px`;
+			cell.style.top = `${row * (cellWidth+cellSpacing)}px`;
+			container.appendChild(cell);
+			cells[row][col] = cell;
+		}
+	}
+}
+
+// the elements on the screen that can move and change - also part of the "view"
+function loadLevel(levelNum = 1){
+	currentGameObjects = []; // clear out the old array
+	const node =  document.createElement("span");
+	node.className = "gameObject";
+
+	// now initialize our player
+	player.x = 1;
+	player.y = 1;
+	player.element = node.cloneNode(true);
+	player.element.classList.add("player");
+	container.appendChild(player.element);
+	
+	
+	/* let's instantiate our game objects */
+	// pull the current level data
+	const levelObjects = allGameObjects["level" + levelNum];
+
+	// loop through this level's objects ... 
+	for (let obj of levelObjects){
+		const clone = Object.assign({}, obj); 		// clone the object
+		clone.element = node.cloneNode(true); 		// clone the element
+		clone.element.classList.add(obj.className); // add the className so we see the right image
+		currentGameObjects.push(clone);				// add to currentGameObjects array  (so it gets moved onto the map)
+		container.appendChild(clone.element);		// add to DOM tree (so we can see it!)
+	}
+}
+
+// draws the grid elements (non game objects)
+function drawGrid(array){
+	const numCols = array[0].length;
+	const numRows = array.length;
+	for (let row=0;row<numRows;row++){
+		for (let col=0;col<numCols;col++){
+			const tile = array[row][col];
+			const element = cells[row][col];
+			
+			// ** can you figure our how to get rid of this switch? Maybe another enumeration, of the tile CSS classes? **
+			switch(tile) {
+    			case worldTile.FLOOR:
+        		element.classList.add("floor")
+        		break;
+        		
+        		case worldTile.WALL:
+        		element.classList.add("wall");
+        		break;
+        		
+        		case worldTile.GRASS:
+        		element.classList.add("grass");
+        		break;
+        		
+        		case worldTile.WATER:
+        		element.classList.add("water");
+        		break;
+        		
+        		case worldTile.GROUND:
+        		element.classList.add("ground");
+        		break;
+			}
+		}
+	}
+}
+
+// checks if the player has what the guard npc wants
+function guardCheck(item, itemQuota)
+{
+    alert("HALT! You cannot pass until I get " + itemQuota + " " + item.toLowerCase() + "(s).");
+    if(checkItem(item))
+    {
+        let amountOfItem = checkAmountOfItem(item);
+        if(amountOfItem >= itemQuota)
+        {
+            if(confirm("Ah! I see you have " + itemQuota + " " + item.toLowerCase()  + "(s)." + "Would you like to pass?"))
+            {
+                alert("Thank you very much!");
+                // remove the amount of gold from the inventory
+                removeItemFromInventory(item, itemQuota);
+                return true;
+            }
+            else
+            {
+                alert("Ah...very well then.");
+                return false;
+            }
+        }
+        else
+        {
+        alert("You do not have enough " + item.toLowerCase() + "(s) to pass!");
+        effectAudio.play();
+        return false;
+        }
+    }    
+}    
+
+// draws the gameobjects to the screen
+function drawGameObjects(array){
+	// player
+	player.element.style.left = `${player.x * (cellWidth + cellSpacing)}px`;
+	player.element.style.top = `${player.y * (cellWidth + cellSpacing)}px`;
+	
+	// game object
+	for (let gameObject of array){
+		gameObject.element.style.left = `${gameObject.x * (cellWidth + cellSpacing)}px`;
+		gameObject.element.style.top = `${gameObject.y * (cellWidth + cellSpacing)}px`;
+	}
+}
+
+// moves the player if there is a command
+function movePlayer(e){
+	let nextX;
+	let nextY;
+	switch(e.keyCode){
+		case keyboard.RIGHT:
+		nextX = player.x + 1;
+		nextY = player.y;
+		if(checkIsLegalMove(nextX,nextY)) player.moveRight();
+		break;
+		
+		case keyboard.DOWN:
+		nextX = player.x;
+		nextY = player.y + 1;
+		if(checkIsLegalMove(nextX,nextY)) player.moveDown();
+		break;
+		
+		case keyboard.LEFT:
+		nextX = player.x - 1;
+		nextY = player.y;
+		if(checkIsLegalMove(nextX,nextY)) player.moveLeft();
+		break;
+		
+		case keyboard.UP:
+		nextX = player.x;
+		nextY = player.y - 1;
+		if(checkIsLegalMove(nextX,nextY)) player.moveUp();
+		break;
+	}
+	
+    
+    // checks the leglity of the players destination
+	function checkIsLegalMove(nextX,nextY){
+        for(let i = 0; i < currentGameObjects.length; i++)
+        {
+            if(currentGameObjects[i].x == nextX && currentGameObjects[i].y == nextY)
+            {
+                switch(currentGameObjects[i].type)
+                {
+					case "pixie":
+						if(confirm("Teehee, you found me. Would you like my aid?"))
+						{
+							alert("Allow me to soothe your wounds.");
+							removeObjectFromLevel(currentGameObjects[i].x, currentGameObjects[i].y, currentGameObjects[i].className);
+							player.health = 30;
+						}
+						else
+						{
+							alert("Return to me whenever your journey leaves you weary.");
+							return false;
+						}
+						break;
+					case "npc":
+						alert("Thank you for saving me and recovering the Pendant of Power!");
+						return false;
+                    case "guard":
+                        if(!guardCheck(currentGameObjects[i].item, currentGameObjects[i].amount))
+                            return false;
+                        else
+                            removeObjectFromLevel(currentGameObjects[i].x, currentGameObjects[i].y, currentGameObjects[i].className);
+                        break;
+                    case "monster":
+                        if(!enemyHandling(currentGameObjects[i]))
+                            return false;
+                }
+            }
+        }
+        
+		let nextTile = currentGameWorld[nextY][nextX];
+		if (nextTile != worldTile.WALL && nextTile != worldTile.WATER){
+			return true;
+        }
+        else{
+			effectAudio.play();
+			return false;
+		}
+	}
+}
+
+
+// IV. EVENTS
+function setupEvents(){
+	window.onmouseup = (e) => {
+		e.preventDefault();
+		gridClicked(e);
+	};
+	
+	window.onkeydown = (e)=>{
+
+		// checking for other keys - ex. 'p' and 'P' for pausing
+		var char = String.fromCharCode(e.keyCode);
+		if (char == "p" || char == "P"){
+		
+		}
+		movePlayer(e);
+        setHealth();
+		checkCollision();
+		drawGrid(currentGameWorld);
+		drawGameObjects(currentGameObjects);
+	};
+}
+
+// check tile the player steps on
+function checkCollision(x = player.x, y = player.y)
+{
+    // loop through the gameObjects list
+	for(let i = 0; i < currentGameObjects.length; i++)
+	{
+        //.level1debugger;
+        // if the players x and y matches the objects x and y
+		if(x == currentGameObjects[i].x && y == currentGameObjects[i].y)
+		{
+            switch(currentGameObjects[i].type)
+            {
+                case "weapon":
+                    let currentWeapon = player.weapon;
+                    equipWeapon(currentGameObjects[i]);
+                    if(player.weapon != currentWeapon)
+                        removeObjectFromLevel(currentGameObjects[i].x, currentGameObjects[i].y, currentGameObjects[i].className);
+                    break;
+                case "key":
+                    modifyInventory(currentGameObjects[i].name);
+                    removeObjectFromLevel(currentGameObjects[i].x, currentGameObjects[i].y, currentGameObjects[i].className);
+                    break;
+                case "chest":
+                    openChest(currentGameObjects[i]);
+					drawGrid(currentGameWorld);
+                    break;
+                case "treasure":
+                    modifyInventory(currentGameObjects[i].name);
+                    removeObjectFromLevel(currentGameObjects[i].x, currentGameObjects[i].y, currentGameObjects[i].className);
+                    break;
+                case "ring":
+                    modifyInventory(currentGameObjects[i].name);
+                    removeObjectFromLevel(currentGameObjects[i].x, currentGameObjects[i].y, currentGameObjects[i].className);
+                    break;
+				case "door":
+					changeLevel();
+					break;
+				case "pixie":
+					break;
+            }
+		}
+	}
+}
+
+// return the x and y value of the grid where the mouse clicks
+function gridClicked(e){
+	let rect = container.getBoundingClientRect();
+	let mouseX = e.clientX - rect.x;
+	let mouseY = e.clientY - rect.y;
+	let columnWidth = cellWidth+cellSpacing;
+	let col = Math.floor(mouseX/columnWidth);
+	let row = Math.floor(mouseY/columnWidth);
+	let selectedCell = cells[row][col];
+	// selectedCell.classList.add('cellSelected');
+	console.log(`${col},${row}`);
+}
+
+// changes the level when the player goes through a door
+function changeLevel()
+{
+	if(currentLevelNumber == 1)
+	{
+		resetLevel(2);
+		
+		player.x = 1;
+	}
+	else if(currentLevelNumber == 2)
+	{
+		// if player enters the left door
+		if(player.x == 0)
+		{
+			resetLevel(1);
+			
+			player.x = 28;
+		}
+		// if player enters the right door
+		else if(player.x == 29)
+		{
+			resetLevel(6);
+			
+			player.x = 1;
+		}
+		// if player enters the top door
+		else if(player.y == 0)
+		{
+			resetLevel(3);
+			
+			player.y = 18;
+		}
+		// if player enters the bottom door
+		else if(player.y == 19)
+		{
+			resetLevel(4);
+			
+			player.y = 1;
+		}
+	}
+	else if(currentLevelNumber == 3)
+	{
+		resetLevel(2);
+		
+		player.y = 1;
+	}
+	else if(currentLevelNumber == 4)
+	{
+		resetLevel(2);
+		
+		player.y = 18;
+	}
+	else if(currentLevelNumber == 5)
+	{
+		if(player.x == 0)
+		{
+			resetLevel(6);
+		
+			player.x = 28;
+		}
+		else if(player.x == 14 || player.x == 15)
+		{
+			resetLevel(7);
+		}
+	}
+	else if(currentLevelNumber == 6)
+	{
+		if(player.x == 0)
+		{
+			resetLevel(2);
+			
+			player.x = 28;
+		}
+		if(player.x == 29)
+		{
+			resetLevel(5);
+			
+			player.x = 1;
+		}
+	}
+	
+	//resets the world to the new level
+	currentGameWorld = gameworld["world" + currentLevelNumber];
+	let numCols = currentGameWorld[0].length;
+	let numRows = currentGameWorld.length;
+	createGridElements(numRows,numCols);
+}
+
+//resets the objects in a world in order to change level
+function resetLevel(newLevel)
+{
+	let levelName = "level" + newLevel;
+	
+	// remove all objects in the DOM except for the player
+	let container = document.querySelector("#gridContainer");
+	for(let i = container.children.length - 1; i >= 0; i--)
+	{
+		if(container.children[i].className != "gameObject player")
+		{
+			container.removeChild(container.children[i]);
+		}
+	}
+	
+	//removes all objects i ncurrentGameObjects except for the player
+	for(let i = 0; i < currentGameObjects.length ; i++)
+    {
+        if(currentGameObjects[i].className != "gameObject player")
+        {
+            currentGameObjects.splice(i, 1);
+			i--;
+        }
+    }
+	
+	// add the next level's objects to currentGameObjects
+	
+	const node =  document.createElement("span");
+	node.className = "gameObject";
+	const levelObjects = allGameObjects[levelName];
+
+	// loop through this level's objects ... 
+	for (let obj of levelObjects){
+		const clone = Object.assign({}, obj); 		// clone the object
+		clone.element = node.cloneNode(true); 		// clone the element
+		clone.element.classList.add(obj.className); // add the className so we see the right image
+		currentGameObjects.push(clone);				// add to currentGameObjects array  (so it gets moved onto the map)
+		container.appendChild(clone.element);		// add to DOM tree (so we can see it!)
+	}
+		
+	currentLevelNumber = newLevel;
+}
+</script>
+
+</body>
+</html>
