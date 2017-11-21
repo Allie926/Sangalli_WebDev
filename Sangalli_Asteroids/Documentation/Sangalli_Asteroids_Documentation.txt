@@ -1,0 +1,32 @@
+Allie Sangalli
+IGME 202, Section 5
+
+Assignment: Asteroids
+
+Description:
+This project is a semi-recreation of the Atari game Asteroids. The game is an endless shoot-em-up where you control a spaceship and
+try to defend yourself from approaching asteroids.
+
+User Responsibilities:
+In this game, the user takes control of the ship and must survive as long as they can against the oncoming asteroids. The player
+controls the ship using the arrow keys, using left and right to rotate the ship and the up arrow to accelerate. The player can fire
+shots from the ship by pressing the spacebar. The player must dodge and shoot the asteroids approaching the ship in order to survive
+as long as possible and achieve a higher score.
+
+Above and Beyond:
+For my above and beyond, I implemented a scaling difficulty in the game. As your score increases, the asteroids begin to generate
+at a quicker rate. The initial generation rate is once every 3 seconds, or 90 frames. This rate decreases by 15 frames for every 300
+points the player earns. I also added a title screen from which there are two buttons to press, Play and Quit. Quit simply quits out of
+the application. Play sends you to the actual game. When you get a game over, the ship is destroyed, leaving a Game Over message on
+the screen and a Back to Menu button, that brings you back to the title screen.
+
+Notes:
+I had a pretty severe spike in my depression this past week in addition to having a lot of work for my other classes and my sorority 
+so I'm using my grace period on this project.
+
+Sources:
+Ship texture: http://3.bp.blogspot.com/-cg1jtrxaZ8Y/Ufl5SmFUVaI/AAAAAAAAAzY/KBxNVcMmOB0/s1600/F5S4.png
+Asteroid textures: https://camo.githubusercontent.com/593a5291887532e6f8d7c231a1db63de3ff929d0/68747470733a2f2f7261772e6769746875622e636f6d2f77696b692f47617261676547616d65732f546f7271756532442f47657474696e675f537461727465645f696d616765732f61737465726f6964732e706e67 
+(i only used 3 of the 4 sprites)
+Bullet texture: https://donaldcarling.files.wordpress.com/2016/03/mega-laser-1.png (i modified the color on my own)
+Space texture: https://d2v9y0dukr6mq2.cloudfront.net/video/thumbnail/moving-through-stars-in-space_-1zccenlb__F0000.png
